@@ -1,0 +1,184 @@
+name: Auto-Generate README
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - '.github/workflows/generate-readme.yml'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  generate-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for commits
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install markdown beautifulsoup4
+
+      - name: Generate README
+        run: |
+          cat > generate_readme.py << 'EOF'
+          import os
+          import re
+          import datetime
+          from bs4 import BeautifulSoup
+
+          # Read the HTML file
+          with open('index.html', 'r', encoding='utf-8') as file:
+              content = file.read()
+
+          # Parse HTML
+          soup = BeautifulSoup(content, 'html.parser')
+
+          # Extract key information
+          name = "John Akinola"
+          title = "DevOps Engineer"
+          
+          # Get skills
+          skills = []
+          skill_categories = soup.select('.skill-category')
+          for category in skill_categories:
+              category_name = category.select_one('h3').get_text(strip=True).replace(u'\xa0', u' ')
+              category_skills = [skill.get_text(strip=True) for skill in category.select('.skill-item')]
+              skills.append((category_name, category_skills))
+          
+          # Get projects
+          projects = []
+          project_cards = soup.select('.project-card')
+          for card in project_cards:
+              project_name = card.select_one('h3').get_text(strip=True)
+              project_desc = card.select_one('.project-content p').get_text(strip=True)
+              project_tech = [tech.get_text(strip=True) for tech in card.select('.tech-tag')]
+              projects.append((project_name, project_desc, project_tech))
+          
+          # Get contact info
+          email = soup.select_one('.contact-item-content p').get_text(strip=True)
+          
+          # Read the README template
+          with open('.github/workflows/README_template.md', 'r', encoding='utf-8') as file:
+              readme_template = file.read()
+          
+          # Replace current year
+          current_year = datetime.datetime.now().year
+          readme_template = readme_template.replace('${YEAR}', str(current_year))
+          
+          # Write the final README
+          with open('README.md', 'w', encoding='utf-8') as file:
+              file.write(readme_template)
+          
+          print("README.md has been generated successfully!")
+          EOF
+          
+          # Create template directory if it doesn't exist
+          mkdir -p .github/workflows
+          
+          # Create README template
+          cat > .github/workflows/README_template.md << 'EOF'
+          # John Akinola | DevOps Engineer Portfolio
+
+          ![Portfolio Banner](/banner.png)
+
+          ## 📋 Overview
+
+          This repository contains the source code for my professional portfolio website as a DevOps Engineer. The site showcases my skills, experience, projects, and contact information.
+
+          ## 🌐 Live Demo
+
+          [View the live portfolio website](https://johnprexy.github.io/Myportfolio)
+
+          ## ✨ Features
+
+          - Responsive design that works on all devices
+          - Interactive UI with animations
+          - Detailed sections for:
+            - Professional summary
+            - Work experience
+            - Technical skills
+            - Featured projects
+            - Contact information
+          - Mobile-friendly navigation
+          - Contact form for inquiries
+
+          ## 🛠️ Technologies Used
+
+          - HTML5
+          - CSS3 (with animations and responsive design)
+          - JavaScript (vanilla)
+          - Font Awesome for icons
+          - GitHub Pages for hosting
+
+          ## 🚀 Deployment
+
+          This website is automatically deployed using GitHub Actions whenever changes are pushed to the main branch. The deployment workflow:
+
+          1. Checks out the repository
+          2. Sets up the required environment
+          3. Builds the static website
+          4. Deploys to GitHub Pages
+
+          ## 📁 Project Structure
+
+          ```
+          /
+          ├── index.html            # Main HTML file
+          ├── .github/              # GitHub configuration
+          │   └── workflows/        # GitHub Actions workflows
+          ├── *.PNG, *.JPG          # Image assets
+          ├── README.md             # This file (auto-generated)
+          ```
+
+          ## 🧰 Skills Highlighted
+
+          - DevOps & CI/CD: Jenkins, GitHub Actions, Docker, Kubernetes, Terraform
+          - Cloud Platforms: AWS (EC2, EKS, S3, VPC), Azure, GCP
+          - Programming & Scripting: Python, Bash, PowerShell
+          - Databases & Monitoring: MySQL, Prometheus, Grafana
+
+          ## 📬 Contact Information
+
+          - Email: akinolajohnayomide@gmail.com
+          - Phone: +234 810 978 3454
+          - Location: Lagos, Nigeria
+          - LinkedIn: [John Ayomide Akinola](https://www.linkedin.com/in/john-ayomide-akinola)
+          - GitHub: [johnprexy](https://www.github.com/johnprexy)
+
+          ## 📊 Statistics
+
+          - 5+ Years Experience
+          - 50+ Projects
+          - 99.9% Uptime Achieved
+
+          ## 📝 License
+
+          This project is licensed under the MIT License - see the LICENSE file for details.
+
+          ---
+
+          © ${YEAR} John Akinola | DevOps Engineer
+
+          *This README is automatically generated using GitHub Actions.*
+          EOF
+          
+          # Run the script to generate README
+          python generate_readme.py
+
+      - name: Commit and push if README changed
+        run: |
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'actions@github.com'
+          git add README.md
+          git diff --quiet && git diff --staged --quiet || git commit -m "Auto-update README.md"
+          git push
